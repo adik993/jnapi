@@ -1,0 +1,14 @@
+# Gradle
+.gradle/
+gradle/
+
+# Build
+build/
+target/
+out/
+
+#Intellij project files
+.idea/
+*.iml
+*.iws
+*.ipr
