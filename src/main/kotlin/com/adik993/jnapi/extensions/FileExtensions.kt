@@ -13,6 +13,8 @@ fun File.md5sum(): String {
 }
 
 fun File.toFullPathFile(): File {
-    val path = this.path.replaceFirst(Regex("^~"), System.getProperty("user.home"))
+    val path = if (this.path.startsWith('~')) this.path.replaceFirst("~", getHomeDir()) else this.path
     return File(path).absoluteFile
 }
+
+private fun getHomeDir() = System.getProperty("user.home")
