@@ -1,6 +1,7 @@
 package com.adik993.jnapi.compression
 
 import com.adik993.jnapi.extensions.toFullPathFile
+import io.reactivex.Observable
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import java.io.BufferedOutputStream
@@ -12,28 +13,24 @@ import java.util.Spliterator.*
 import java.util.function.Consumer
 import java.util.stream.Stream
 import java.util.stream.StreamSupport
-import kotlin.streams.toList
 
-fun File.extract7z(destDir: File, password: String? = null, bufferSize: Int = 1024): List<File> {
+fun File.extract7z(destDir: File, password: String? = null, bufferSize: Int = 1024): Observable<File> {
     val absoluteDestDir = destDir.toFullPathFile()
     val archive = SevenZFile(this.toFullPathFile(), password?.toByteArray(StandardCharsets.UTF_16LE))
-    archive.use {
-        return archive.stream()
-                .map { it.createFile(absoluteDestDir) }
-                .filter { !it.isDirectory }
-                .peek { extract7zFile(it.outputStream(), archive, bufferSize) }
-                .toList()
-    }
+    return fromStream(archive.stream())
+            .map { it.createFile(absoluteDestDir) }
+            .filter { !it.isDirectory }
+            .doOnNext { extract7zFile(it.outputStream(), archive, bufferSize) }
 }
 
-fun SevenZArchiveEntry.createFile(root: File): File {
+private fun SevenZArchiveEntry.createFile(root: File): File {
     val file = File(root, this.name)
     if (isDirectory) file.mkdirs()
     else file.parentFile.mkdirs() && file.createNewFile()
     return file
 }
 
-internal fun extract7zFile(outputStream: FileOutputStream, archive: SevenZFile, bufferSize: Int) {
+private fun extract7zFile(outputStream: FileOutputStream, archive: SevenZFile, bufferSize: Int) {
     BufferedOutputStream(outputStream).use { writer ->
         val buffer = ByteArray(bufferSize)
         var read = 0
@@ -68,4 +65,16 @@ class SevenZFileSpliterator(private val archive: SevenZFile) : Spliterator<Seven
     override fun characteristics(): Int {
         return ORDERED or IMMUTABLE or NONNULL or SIZED
     }
+}
+
+private fun <T : Any?> fromStream(stream: Stream<T>): Observable<T> {
+    return Observable.create({ emitter ->
+        emitter.setCancellable(stream::close)
+        try {
+            stream.forEach(emitter::onNext)
+            emitter.onComplete()
+        } catch (e: Exception) {
+            emitter.onError(e)
+        }
+    })
 }

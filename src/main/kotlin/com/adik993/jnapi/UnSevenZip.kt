@@ -1,7 +1,6 @@
 package com.adik993.jnapi
 
 import com.adik993.jnapi.compression.extract7z
-import com.adik993.jnapi.extensions.formatBracets
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.ShowHelpException
 import com.xenomachina.argparser.SystemExitException
@@ -26,9 +25,10 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
     val dest = destDir ?: file.parentFile
-    println("Extracting files to {} folder...".formatBracets(dest))
-    val extractedFiles = file.extract7z(dest, password)
-    println("Extracted {} files:".formatBracets(extractedFiles.size))
-    extractedFiles.forEach { println("{} ({} bytes)".formatBracets(it.name, it.length())) }
-
+    println("Extracting files to $dest folder...")
+    val extractedFiles = file.extract7z(dest, password, 1024 * 10)
+            .doOnError({ println("Error extracting: $it") })
+            .doOnNext({ println("${it.path} (${it.length()} bytes)") })
+            .toList().blockingGet()
+    println("Extracted ${extractedFiles.size} files")
 }
