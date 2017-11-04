@@ -1,9 +1,11 @@
 package com.adik993.jnapi.compression
 
 import com.adik993.jnapi.extensions.toFullPathFile
+import com.adik993.jnapi.extensions.toObservable
 import io.reactivex.Observable
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
+import org.apache.tika.mime.MediaType
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -14,13 +16,17 @@ import java.util.function.Consumer
 import java.util.stream.Stream
 import java.util.stream.StreamSupport
 
-fun File.extract7z(destDir: File, password: String? = null, bufferSize: Int = 1024): Observable<File> {
-    val absoluteDestDir = destDir.toFullPathFile()
-    val archive = SevenZFile(this.toFullPathFile(), password?.toByteArray(StandardCharsets.UTF_16LE))
-    return fromStream(archive.stream())
-            .map { it.createFile(absoluteDestDir) }
-            .filter { !it.isDirectory }
-            .doOnNext { extract7zFile(it.outputStream(), archive, bufferSize) }
+class SevenZExtractor : Extractor {
+    override val supportedMediaTypes = listOf(MediaType.parse("application/x-7z-compressed"))
+
+    override fun extract(compressed: File, destDir: File, password: String?, bufferSize: Int): Observable<File> {
+        val absoluteDestDir = destDir.toFullPathFile()
+        val archive = SevenZFile(compressed.toFullPathFile(), password?.toByteArray(StandardCharsets.UTF_16LE))
+        return archive.stream().toObservable()
+                .map { it.createFile(absoluteDestDir) }
+                .filter { !it.isDirectory }
+                .doOnNext { extract7zFile(it.outputStream(), archive, bufferSize) }
+    }
 }
 
 private fun SevenZArchiveEntry.createFile(root: File): File {
@@ -65,16 +71,4 @@ class SevenZFileSpliterator(private val archive: SevenZFile) : Spliterator<Seven
     override fun characteristics(): Int {
         return ORDERED or IMMUTABLE or NONNULL or SIZED
     }
-}
-
-private fun <T : Any?> fromStream(stream: Stream<T>): Observable<T> {
-    return Observable.create({ emitter ->
-        emitter.setCancellable(stream::close)
-        try {
-            stream.forEach(emitter::onNext)
-            emitter.onComplete()
-        } catch (e: Exception) {
-            emitter.onError(e)
-        }
-    })
 }
