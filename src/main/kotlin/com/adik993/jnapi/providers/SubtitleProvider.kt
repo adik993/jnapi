@@ -1,7 +1,9 @@
 package com.adik993.jnapi.providers
 
 import io.reactivex.Observable
+import java.io.File
 
 interface SubtitleProvider {
-    fun download(hash: String, lang: String): Observable<String>
+    val name: String
+    fun download(file: File, lang: String): Observable<SubtitleOptions>
 }

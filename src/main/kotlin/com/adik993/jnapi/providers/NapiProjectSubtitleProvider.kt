@@ -1,8 +1,10 @@
 package com.adik993.jnapi.providers
 
+import com.adik993.jnapi.extensions.md5sum
+import com.adik993.jnapi.extensions.txt
 import com.adik993.jnapi.logging.loggerFor
 import io.reactivex.Observable
-import io.reactivex.schedulers.Schedulers
+import org.apache.commons.io.IOUtils
 import org.simpleframework.xml.Element
 import org.simpleframework.xml.Root
 import org.simpleframework.xml.convert.AnnotationStrategy
@@ -15,26 +17,42 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.converter.simplexml.SimpleXmlConverterFactory
-import retrofit2.http.*
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
+import retrofit2.http.POST
+import java.io.File
+import java.nio.charset.StandardCharsets
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 class NapiProjectSubtitleProvider : SubtitleProvider {
-    val log = loggerFor<NapiProjectSubtitleProvider>()
+    override val name: String = "NapiProjekt"
+    private val log = loggerFor<NapiProjectSubtitleProvider>()
 
-    val ARCHIVE_PASSWORD = "iBlm8NTigvru0Jr0"
+    companion object {
+        private val ARCHIVE_PASSWORD = "iBlm8NTigvru0Jr0"
+        private val NUMBER_OF_BYTES_MD5: Long = 10 * Math.pow(2.0, 20.0).toLong()
+    }
 
     val api = NapiProjekt.create()
 
-    override fun download(hash: String, lang: String): Observable<String> {
-        log.info("Downloading {} subtitles for file {}", lang, hash)
-        api.fetchSubtitles("dc3cfb9a57309f42f308b5ca3e321e29", "ENG")
-                .subscribe { resp ->
-                    println(resp)
-                }
-        return Observable.just("dummy")
-                .delay(10, TimeUnit.SECONDS)
-                .subscribeOn(Schedulers.io())
+    override fun download(file: File, lang: String): Observable<SubtitleOptions> {
+        val hash = file.md5sum(NUMBER_OF_BYTES_MD5)
+        log.info("Downloading {} subtitles for file {} with hash {}", lang, file, hash)
+        return api.fetchSubtitles(hash, lang)
+                .filter { it.body() != null }
+                .map { it.body()!! }
+                .doOnNext { log.debug("Subtitles successfully fetched for file {}", file) }
+                .map { SubtitleOptions(file, SubtitleOptions.Option(name, it.subtitles.toDownloadObservable(file.txt()))) }
+                .onErrorResumeNext(Observable.just(SubtitleOptions.noSubtitles(file)))
+    }
+
+    private fun NapiProjektResponse.Subtitles.toDownloadObservable(output: File): Observable<File> {
+        return Observable.fromCallable {
+            log.debug("Saving subtitles of size {} to {}", content.length, output)
+            IOUtils.write(content, output.outputStream(), StandardCharsets.UTF_8)
+            log.debug("Subtitles saved of size {} saved to {}", content.length, output)
+            output
+        }
     }
 }
 

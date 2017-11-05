@@ -1,11 +1,16 @@
 package com.adik993.jnapi
 
+import com.adik993.jnapi.extensions.md5sum
+import com.adik993.jnapi.extensions.replaceExtension
 import com.adik993.jnapi.extensions.toFullPathFile
+import com.adik993.jnapi.extensions.withoutExtension
 import com.adik993.jnapi.logging.loggerFor
 import com.adik993.jnapi.providers.NapiProjectSubtitleProvider
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
+import io.reactivex.Observable
 import java.io.File
+import javax.ws.rs.NotSupportedException
 import kotlin.system.exitProcess
 
 class Main
@@ -20,8 +25,16 @@ fun main(args: Array<String>) {
         println("Nothing to do")
         exitProcess(1)
     }
-//    val jnapi = JNapi()
-//    jnapi.download(filenames).forEach { log.info(it.toString()) }
-    val provider = NapiProjectSubtitleProvider()
-    provider.download("", "")
+    val jnapi = JNapi()
+    jnapi.download(filenames)
+            .flatMap { options ->
+                if (options.isActionRequired()) {
+                    Observable.error(NotSupportedException("Choosing not supported yet"))
+                } else if (options.isSubtitlesNotFound()) {
+                    log.info("Subtitles not found for file {}", options.source)
+                    Observable.empty()
+                } else {
+                    options.download()
+                }
+            }.subscribe({ log.info("Subtitles saved to {}", it) })
 }
