@@ -8,7 +8,9 @@ import java.util.stream.Collectors
 interface Extractor {
     val supportedMediaTypes: List<MediaType>
 
-    fun extract(compressed: File, destDir: File, password: String?, bufferSize: Int): Observable<File>
+    fun extractToFile(compressed: File, destDir: File, password: String?, bufferSize: Int): Observable<File>
+
+    fun extractInMemory(compressed: ByteArray, password: String?): Observable<ByteArray>
 
     fun toMap(): Map<MediaType, Extractor> {
         return this.supportedMediaTypes.stream()
