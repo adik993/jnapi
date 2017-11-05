@@ -4,6 +4,7 @@ import com.adik993.jnapi.extensions.extract
 import com.adik993.jnapi.extensions.md5sum
 import com.adik993.jnapi.extensions.txt
 import com.adik993.jnapi.logging.loggerFor
+import com.adik993.jnapi.retrofit.okHttpClient
 import io.reactivex.Observable
 import org.apache.commons.io.IOUtils
 import org.simpleframework.xml.Element
@@ -24,9 +25,10 @@ import retrofit2.http.POST
 import java.io.File
 import java.util.*
 
+private val log = loggerFor<NapiProjectSubtitleProvider>()
+
 class NapiProjectSubtitleProvider : SubtitleProvider {
     override val name: String = "NapiProjekt"
-    private val log = loggerFor<NapiProjectSubtitleProvider>()
 
     companion object {
         private val ARCHIVE_PASSWORD = "iBlm8NTigvru0Jr0"
@@ -35,33 +37,29 @@ class NapiProjectSubtitleProvider : SubtitleProvider {
 
     val api = NapiProjekt.create()
 
-    override fun download(file: File, lang: String): Observable<SubtitleOptions> {
+    override fun search(file: File, lang: String): Observable<SubtitleOptions> {
         val hash = file.md5sum(NUMBER_OF_BYTES_MD5)
-        log.info("Downloading {} subtitles for file {} with hash {}", lang, file, hash)
-        return api.fetchSubtitles(hash, lang, SubtitleTxtMode.SevenZ.value)
+        log.info("Searching {} subtitles for file {} with hash {}", lang, file, hash)
+        return api.fetchSubtitles(hash, lang)
                 .filter { it.body() != null }
                 .map { it.body()!! }
-                .flatMap { response ->
-                    response.subtitles.content.bytes.extract(ARCHIVE_PASSWORD)
-                            .doOnNext { response.subtitles.content = ByteContent(it) }
-                            .map { response }
-                }
-                .doOnNext { log.debug("Subtitles successfully fetched for file {}", file) }
-                .map { SubtitleOptions(file, SubtitleOptions.Option(name, it.subtitles.toDownloadObservable(file.txt()))) }
+                .doOnNext { log.debug("Search completed for file {}", file) }
+                .map { SubtitleOptions(file, SubtitleOptions.Option(name, file, it.getId(), lang)) }
                 .onErrorResumeNext { throwable: Throwable ->
-                    log.warn("Error downloading subtitles for file {}", file, throwable)
+                    log.debug("Error searching for subtitles for file {}", file, throwable)
                     Observable.just(SubtitleOptions.noSubtitles(file))
                 }
     }
 
-    private fun Subtitles.toDownloadObservable(output: File): Observable<File> {
-        return Observable.fromCallable {
-            val bytes = content.bytes
-            log.debug("Saving subtitles of size {} to {}", bytes.size, output)
-            IOUtils.copy(bytes.inputStream(), output.outputStream())
-            log.debug("Subtitles saved of size {} saved to {}", bytes.size, output)
-            output
-        }
+    override fun download(option: SubtitleOptions.Option): Observable<File> {
+        log.info("Downloading subtitles for option {}", option)
+        val file = option.source
+        return api.fetchSubtitles(option.id, option.lang)
+                .filter { it.body() != null }
+                .map { it.body()!! }
+                .doOnNext { log.debug("Subtitles successfully fetched for option {}", option) }
+                .flatMap { it.toExtracted(ARCHIVE_PASSWORD) }
+                .flatMap { it.save(file.txt()) }
     }
 }
 
@@ -71,7 +69,7 @@ interface NapiProjekt {
     @POST("api-napiprojekt3.php")
     fun fetchSubtitles(@Field("downloaded_subtitles_id") md5sum: String,
                        @Field("downloaded_subtitles_lang") lang: String,
-                       @Field("downloaded_subtitles_txt") subtitleTxt: Int = SubtitleTxtMode.Text.value,
+                       @Field("downloaded_subtitles_txt") subtitleTxt: Int = SubtitleTxtMode.SevenZ.value,
                        @Field("mode") mode: Int = 1,
                        @Field("client") client: String = "Napiprojekt",
                        @Field("client_ver") clientVersion: String = "2.2.0.2399"): Observable<Response<NapiProjektResponse>>
@@ -79,6 +77,7 @@ interface NapiProjekt {
     companion object {
         fun create(): NapiProjekt {
             val retrofit = Retrofit.Builder()
+                    .client(okHttpClient)
                     .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
                     .addConverterFactory(SimpleXmlConverterFactory.create(Persister(AnnotationStrategy())))
                     .baseUrl("http://napiprojekt.pl/api/")
@@ -97,6 +96,25 @@ data class NapiProjektResponse(
         @field:Element(name = "status") var status: String,
         @field:Element var subtitles: Subtitles) {
     constructor() : this("", Subtitles())
+
+    fun getId(): String {
+        return subtitles.id
+    }
+
+    fun toExtracted(password: String?): Observable<NapiProjektResponse> {
+        return subtitles.content.bytes.extract(password)
+                .map { this.copy(subtitles = this.subtitles.copy(content = ByteContent(it))) }
+    }
+
+    fun save(output: File): Observable<File> {
+        return Observable.fromCallable {
+            val bytes = this.subtitles.content.bytes
+            log.debug("Saving subtitles of size {} to {}", bytes.size, output)
+            IOUtils.copy(bytes.inputStream(), output.outputStream())
+            log.debug("Subtitles saved of size {} saved to {}", bytes.size, output)
+            output
+        }
+    }
 }
 
 @Root(name = "subtitles")

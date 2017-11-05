@@ -22,7 +22,7 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
     val jnapi = JNapi()
-    jnapi.download(filenames)
+    jnapi.search(filenames)
             .flatMap { options ->
                 if (options.isActionRequired()) {
                     Observable.error(NotSupportedException("Choosing not supported yet"))
@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
                     log.info("Subtitles not found for file {}", options.source)
                     Observable.empty()
                 } else {
-                    options.download()
+                    jnapi.download(options.onlyOption())
                 }
             }.subscribe({ log.info("Subtitles saved to {}", it) })
 }

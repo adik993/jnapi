@@ -8,31 +8,44 @@ import com.adik993.jnapi.providers.SubtitleProvider
 import io.reactivex.Observable
 import io.reactivex.rxkotlin.toObservable
 import java.io.File
+import java.util.stream.Collectors
 
-class JNapi(val providers: List<SubtitleProvider> = listOf(NapiProjectSubtitleProvider())) {
+class JNapi {
     val log = loggerFor<JNapi>()
 
-    fun download(file: List<File>): Observable<SubtitleOptions> {
-        return Observable.merge(file.map(this::download))
+    private val providers: List<SubtitleProvider>
+    private val providersMap: Map<String, SubtitleProvider>
+
+    constructor(providers: List<SubtitleProvider> = listOf(NapiProjectSubtitleProvider())) {
+        this.providers = providers
+        this.providersMap = this.providers.stream().collect(Collectors.toMap({ it.name }, { it }))
     }
 
-    fun download(file: File): Observable<SubtitleOptions> {
-        return if (file.isDirectory) downloadDir(file)
-        else downloadFile(file)
+    fun search(file: List<File>): Observable<SubtitleOptions> {
+        return Observable.merge(file.map(this::search))
     }
 
-    private fun downloadDir(dir: File): Observable<SubtitleOptions> {
+    fun search(file: File): Observable<SubtitleOptions> {
+        return if (file.isDirectory) searchDir(file)
+        else searchFile(file)
+    }
+
+    fun download(option: SubtitleOptions.Option): Observable<File> {
+        return this.providersMap[option.providerName]?.download(option) ?: throw IllegalStateException("Invalid provider name")
+    }
+
+    private fun searchDir(dir: File): Observable<SubtitleOptions> {
         return dir.walkTopDown().toObservable()
                 .filter(File::isFile)
-                .concatMap(this::downloadFile)
+                .concatMap(this::searchFile)
     }
 
-    private fun downloadFile(file: File): Observable<SubtitleOptions> {
-        log.info("Downloading subtitles for {}", file)
+    private fun searchFile(file: File): Observable<SubtitleOptions> {
+        log.info("searching subtitles for {}", file)
         if (!file.canRead()) {
             log.warn("Permission denied for {}", file)
             return Observable.error(PermissionDeniedException("Cannot read file: $file"))
         }
-        return Observable.merge(providers.map { it.download(file, "ENG") })
+        return Observable.merge(providers.map { it.search(file, "ENG") })
     }
 }
