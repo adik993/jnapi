@@ -1,7 +1,6 @@
 package com.adik993.jnapi
 
 import com.adik993.jnapi.exceptions.PermissionDeniedException
-import com.adik993.jnapi.extensions.md5sum
 import com.adik993.jnapi.logging.loggerFor
 import com.adik993.jnapi.providers.NapiProjectSubtitleProvider
 import com.adik993.jnapi.providers.SubtitleOptions

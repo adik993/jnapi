@@ -1,5 +1,6 @@
 package com.adik993.jnapi.providers
 
+import com.adik993.jnapi.extensions.extract
 import com.adik993.jnapi.extensions.md5sum
 import com.adik993.jnapi.extensions.txt
 import com.adik993.jnapi.logging.loggerFor
@@ -21,7 +22,6 @@ import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.POST
 import java.io.File
-import java.nio.charset.StandardCharsets
 import java.util.*
 
 class NapiProjectSubtitleProvider : SubtitleProvider {
@@ -38,19 +38,28 @@ class NapiProjectSubtitleProvider : SubtitleProvider {
     override fun download(file: File, lang: String): Observable<SubtitleOptions> {
         val hash = file.md5sum(NUMBER_OF_BYTES_MD5)
         log.info("Downloading {} subtitles for file {} with hash {}", lang, file, hash)
-        return api.fetchSubtitles(hash, lang)
+        return api.fetchSubtitles(hash, lang, SubtitleTxtMode.SevenZ.value)
                 .filter { it.body() != null }
                 .map { it.body()!! }
+                .flatMap { response ->
+                    response.subtitles.content.bytes.extract(ARCHIVE_PASSWORD)
+                            .doOnNext { response.subtitles.content = ByteContent(it) }
+                            .map { response }
+                }
                 .doOnNext { log.debug("Subtitles successfully fetched for file {}", file) }
                 .map { SubtitleOptions(file, SubtitleOptions.Option(name, it.subtitles.toDownloadObservable(file.txt()))) }
-                .onErrorResumeNext(Observable.just(SubtitleOptions.noSubtitles(file)))
+                .onErrorResumeNext { throwable: Throwable ->
+                    log.warn("Error downloading subtitles for file {}", file, throwable)
+                    Observable.just(SubtitleOptions.noSubtitles(file))
+                }
     }
 
-    private fun NapiProjektResponse.Subtitles.toDownloadObservable(output: File): Observable<File> {
+    private fun Subtitles.toDownloadObservable(output: File): Observable<File> {
         return Observable.fromCallable {
-            log.debug("Saving subtitles of size {} to {}", content.length, output)
-            IOUtils.write(content, output.outputStream(), StandardCharsets.UTF_8)
-            log.debug("Subtitles saved of size {} saved to {}", content.length, output)
+            val bytes = content.bytes
+            log.debug("Saving subtitles of size {} to {}", bytes.size, output)
+            IOUtils.copy(bytes.inputStream(), output.outputStream())
+            log.debug("Subtitles saved of size {} saved to {}", bytes.size, output)
             output
         }
     }
@@ -58,7 +67,6 @@ class NapiProjectSubtitleProvider : SubtitleProvider {
 
 
 interface NapiProjekt {
-
     @FormUrlEncoded
     @POST("api-napiprojekt3.php")
     fun fetchSubtitles(@Field("downloaded_subtitles_id") md5sum: String,
@@ -69,7 +77,6 @@ interface NapiProjekt {
                        @Field("client_ver") clientVersion: String = "2.2.0.2399"): Observable<Response<NapiProjektResponse>>
 
     companion object {
-
         fun create(): NapiProjekt {
             val retrofit = Retrofit.Builder()
                     .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
@@ -82,36 +89,36 @@ interface NapiProjekt {
 }
 
 enum class SubtitleTxtMode(val value: Int) {
-    Text(1), SevenZ(2)
+    Text(1), SevenZ(17)
 }
 
 @Root(name = "result", strict = false)
 data class NapiProjektResponse(
         @field:Element(name = "status") var status: String,
         @field:Element var subtitles: Subtitles) {
-
     constructor() : this("", Subtitles())
-
-    @Root(name = "subtitles")
-    data class Subtitles(
-            @field:Element(name = "id") var id: String,
-            @field:Element(name = "subs_hash") var hash: String,
-            @field:Element(name = "filesize") var fileSize: Long,
-            @field:Element(name = "author") var author: String,
-            @field:Element(name = "uploader") var uploader: String,
-            @field:Element(name = "upload_date") var uploadDate: Date,
-            @field:Element(name = "content") @field:Convert(Base64Converter::class) var content: String
-    ) {
-        constructor() : this("", "", 0L, "", "", Date(), "")
-    }
 }
 
-class Base64Converter : Converter<String> {
-    override fun write(node: OutputNode?, value: String?) {
-        node?.value = Base64.getEncoder().encodeToString(value?.toByteArray())
+@Root(name = "subtitles")
+data class Subtitles(
+        @field:Element(name = "id") var id: String,
+        @field:Element(name = "subs_hash") var hash: String,
+        @field:Element(name = "filesize") var fileSize: Long,
+        @field:Element(name = "author") var author: String,
+        @field:Element(name = "uploader") var uploader: String,
+        @field:Element(name = "upload_date") var uploadDate: Date,
+        @field:Element(name = "content") @field:Convert(Base64Converter::class) var content: ByteContent) {
+    constructor() : this("", "", 0L, "", "", Date(), ByteContent(ByteArray(0)))
+}
+
+data class ByteContent(val bytes: ByteArray)
+
+class Base64Converter : Converter<ByteContent> {
+    override fun write(node: OutputNode?, value: ByteContent?) {
+        node?.value = Base64.getEncoder().encodeToString(value?.bytes)
     }
 
-    override fun read(node: InputNode?): String {
-        return String(Base64.getDecoder().decode(node?.value))
+    override fun read(node: InputNode?): ByteContent {
+        return ByteContent(Base64.getDecoder().decode(node?.value))
     }
 }

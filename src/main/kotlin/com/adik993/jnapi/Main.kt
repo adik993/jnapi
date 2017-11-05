@@ -1,11 +1,7 @@
 package com.adik993.jnapi
 
-import com.adik993.jnapi.extensions.md5sum
-import com.adik993.jnapi.extensions.replaceExtension
 import com.adik993.jnapi.extensions.toFullPathFile
-import com.adik993.jnapi.extensions.withoutExtension
 import com.adik993.jnapi.logging.loggerFor
-import com.adik993.jnapi.providers.NapiProjectSubtitleProvider
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import io.reactivex.Observable
