@@ -32,6 +32,9 @@ dependencies {
     implementation('org.apache.tika:tika-parsers:1.16') {
         exclude group: 'commons-logging'
     }
+    implementation "com.squareup.retrofit2:retrofit:2.3.0"
+    implementation "com.squareup.retrofit2:adapter-rxjava2:2.3.0"
+    implementation 'com.squareup.retrofit2:converter-simplexml:2.3.0'
 
     // Use JUnit test framework
     testImplementation 'junit:junit:4.12'

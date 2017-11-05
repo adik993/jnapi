@@ -2,12 +2,14 @@ package com.adik993.jnapi
 
 import com.adik993.jnapi.extensions.toFullPathFile
 import com.adik993.jnapi.logging.loggerFor
+import com.adik993.jnapi.providers.NapiProjectSubtitleProvider
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import java.io.File
 import kotlin.system.exitProcess
 
 class Main
+
 val log = loggerFor<Main>()
 
 fun main(args: Array<String>) {
@@ -18,6 +20,8 @@ fun main(args: Array<String>) {
         println("Nothing to do")
         exitProcess(1)
     }
-    val jnapi = JNapi()
-    jnapi.download(filenames).forEach { log.info(it.toString()) }
+//    val jnapi = JNapi()
+//    jnapi.download(filenames).forEach { log.info(it.toString()) }
+    val provider = NapiProjectSubtitleProvider()
+    provider.download("", "")
 }
