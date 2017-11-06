@@ -5,6 +5,6 @@ import java.io.File
 
 interface SubtitleProvider {
     val name: String
-    fun search(file: File, lang: String): Observable<SubtitleOptions>
+    fun search(file: File, lang: String): Observable<SubtitleOptions.Option>
     fun download(option: SubtitleOptions.Option): Observable<File>
 }

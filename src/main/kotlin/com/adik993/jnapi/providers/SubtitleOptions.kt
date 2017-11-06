@@ -2,7 +2,7 @@ package com.adik993.jnapi.providers
 
 import java.io.File
 
-class SubtitleOptions(val source: File, vararg val options: Option) {
+class SubtitleOptions(val source: File, val options: List<Option>) {
 
     fun isActionRequired(): Boolean {
         return options.size > 1
@@ -22,7 +22,7 @@ class SubtitleOptions(val source: File, vararg val options: Option) {
 
     companion object {
         fun noSubtitles(source: File): SubtitleOptions {
-            return SubtitleOptions(source)
+            return SubtitleOptions(source, emptyList())
         }
     }
 }

@@ -37,17 +37,17 @@ class NapiProjectSubtitleProvider : SubtitleProvider {
 
     val api = NapiProjekt.create()
 
-    override fun search(file: File, lang: String): Observable<SubtitleOptions> {
+    override fun search(file: File, lang: String): Observable<SubtitleOptions.Option> {
         val hash = file.md5sum(NUMBER_OF_BYTES_MD5)
         log.info("Searching {} subtitles for file {} with hash {}", lang, file, hash)
         return api.fetchSubtitles(hash, lang)
                 .filter { it.body() != null }
                 .map { it.body()!! }
                 .doOnNext { log.debug("Search completed for file {}", file) }
-                .map { SubtitleOptions(file, SubtitleOptions.Option(name, file, it.getId(), lang)) }
+                .map { SubtitleOptions.Option(name, file, it.getId(), lang) }
                 .onErrorResumeNext { throwable: Throwable ->
                     log.debug("Error searching for subtitles for file {}", file, throwable)
-                    Observable.just(SubtitleOptions.noSubtitles(file))
+                    Observable.empty()
                 }
     }
 

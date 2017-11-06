@@ -8,6 +8,7 @@ import com.adik993.jnapi.providers.SubtitleProvider
 import io.reactivex.Observable
 import io.reactivex.rxkotlin.toObservable
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.stream.Collectors
 
 class JNapi {
@@ -42,10 +43,14 @@ class JNapi {
 
     private fun searchFile(file: File): Observable<SubtitleOptions> {
         log.info("searching subtitles for {}", file)
-        if (!file.canRead()) {
+        if (!file.exists()) {
+            log.warn("File not found {}", file)
+            return Observable.error(FileNotFoundException("File doesnt exist: $file"))
+        } else if (!file.canRead()) {
             log.warn("Permission denied for {}", file)
             return Observable.error(PermissionDeniedException("Cannot read file: $file"))
         }
         return Observable.merge(providers.map { it.search(file, "ENG") })
+                .toList().map { SubtitleOptions(file, it) }.toObservable()
     }
 }
