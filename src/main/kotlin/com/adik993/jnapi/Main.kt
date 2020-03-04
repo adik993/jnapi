@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
                     log.info("Subtitles not found for file {}", options.source)
                     Observable.empty()
                 } else {
-                    jnapi.download(options.onlyOption())
+                    options.onlyOption().download().toObservable()
                 }
-            }.subscribe({ log.info("Subtitles saved to {}", it) })
+            }.subscribe { log.info("Subtitles saved to {}", it) }
 }

@@ -16,10 +16,10 @@ class GzExtractor : Extractor {
         val input = compressed.toFullPathFile().inputStream()
         val outFile = File(destDir.toFullPathFile(), prepareOutFileName(compressed))
         val output = outFile.outputStream()
-        return Observable.fromCallable({
+        return Observable.fromCallable {
             extractSync(input, output, bufferSize)
             outFile
-        })
+        }
     }
 
     override fun extractInMemory(compressed: ByteArray, password: String?): Observable<ByteArray> {
@@ -32,7 +32,7 @@ class GzExtractor : Extractor {
 
     private fun extractSync(inputStream: InputStream, output: OutputStream, bufferSize: Int) {
         val input = GzipCompressorInputStream(inputStream)
-        input.use {
+        input.use { _ ->
             output.use {
                 IOUtils.copy(input, output, bufferSize)
             }

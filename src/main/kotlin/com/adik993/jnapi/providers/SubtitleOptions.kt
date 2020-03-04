@@ -18,8 +18,6 @@ class SubtitleOptions(val source: File, val options: List<Option>) {
         return options[0]
     }
 
-    data class Option(val providerName: String, val source: File, val id: String, val lang: String)
-
     companion object {
         fun noSubtitles(source: File): SubtitleOptions {
             return SubtitleOptions(source, emptyList())

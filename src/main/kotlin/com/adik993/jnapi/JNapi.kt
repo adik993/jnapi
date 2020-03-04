@@ -3,6 +3,7 @@ package com.adik993.jnapi
 import com.adik993.jnapi.exceptions.PermissionDeniedException
 import com.adik993.jnapi.logging.loggerFor
 import com.adik993.jnapi.providers.NapiProjectSubtitleProvider
+import com.adik993.jnapi.providers.Option
 import com.adik993.jnapi.providers.SubtitleOptions
 import com.adik993.jnapi.providers.SubtitleProvider
 import io.reactivex.Observable
@@ -31,7 +32,7 @@ class JNapi {
         else searchFile(file)
     }
 
-    fun download(option: SubtitleOptions.Option): Observable<File> {
+    fun download(option: Option): Observable<File> {
         return this.providersMap[option.providerName]?.download(option) ?: throw IllegalStateException("Invalid provider name")
     }
 

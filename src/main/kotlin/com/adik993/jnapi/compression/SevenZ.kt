@@ -22,7 +22,7 @@ class SevenZExtractor : Extractor {
 
     override fun extractToFile(compressed: File, destDir: File, password: String?, bufferSize: Int): Observable<File> {
         val absoluteDestDir = destDir.toFullPathFile()
-        val archive = SevenZFile(compressed.toFullPathFile(), password?.toByteArray(StandardCharsets.UTF_16LE))
+        val archive = SevenZFile(compressed.toFullPathFile(), password?.toCharArray())
         return archive.stream().toObservable()
                 .map { it.createFile(absoluteDestDir) }
                 .filter { !it.isDirectory }
@@ -31,7 +31,7 @@ class SevenZExtractor : Extractor {
 
     override fun extractInMemory(compressed: ByteArray, password: String?): Observable<ByteArray> {
         val input = SeekableInMemoryByteChannel(compressed)
-        val archive = SevenZFile(input, password?.toByteArray(StandardCharsets.UTF_16LE))
+        val archive = SevenZFile(input, password?.toCharArray())
         return archive.stream().toObservable()
                 .filter { !it.isDirectory }
                 .map {

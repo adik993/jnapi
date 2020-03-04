@@ -4,8 +4,10 @@ import com.adik993.jnapi.extensions.extract
 import com.adik993.jnapi.extensions.md5sum
 import com.adik993.jnapi.extensions.txt
 import com.adik993.jnapi.logging.loggerFor
+import com.adik993.jnapi.providers.NapiProjectSubtitleProvider.Companion.ARCHIVE_PASSWORD
 import com.adik993.jnapi.retrofit.okHttpClient
 import io.reactivex.Observable
+import io.reactivex.Single
 import org.apache.commons.io.IOUtils
 import org.simpleframework.xml.Element
 import org.simpleframework.xml.Root
@@ -31,27 +33,27 @@ class NapiProjectSubtitleProvider : SubtitleProvider {
     override val name: String = "NapiProjekt"
 
     companion object {
-        private val ARCHIVE_PASSWORD = "iBlm8NTigvru0Jr0"
+        val ARCHIVE_PASSWORD = "iBlm8NTigvru0Jr0"
         private val NUMBER_OF_BYTES_MD5: Long = 10 * Math.pow(2.0, 20.0).toLong()
     }
 
     val api = NapiProjekt.create()
 
-    override fun search(file: File, lang: String): Observable<SubtitleOptions.Option> {
+    override fun search(file: File, lang: String): Observable<out Option> {
         val hash = file.md5sum(NUMBER_OF_BYTES_MD5)
         log.info("Searching {} subtitles for file {} with hash {}", lang, file, hash)
         return api.fetchSubtitles(hash, lang)
                 .filter { it.body() != null }
                 .map { it.body()!! }
                 .doOnNext { log.debug("Search completed for file {}", file) }
-                .map { SubtitleOptions.Option(name, file, it.getId(), lang) }
+                .map { NapiProjectOption(name, file, it, lang) }
                 .onErrorResumeNext { throwable: Throwable ->
                     log.debug("Error searching for subtitles for file {}", file, throwable)
                     Observable.empty()
                 }
     }
 
-    override fun download(option: SubtitleOptions.Option): Observable<File> {
+    override fun download(option: Option): Observable<File> {
         log.info("Downloading subtitles for option {}", option)
         val file = option.source
         return api.fetchSubtitles(option.id, option.lang)
@@ -61,6 +63,16 @@ class NapiProjectSubtitleProvider : SubtitleProvider {
                 .flatMap { it.toExtracted(ARCHIVE_PASSWORD) }
                 .flatMap { it.save(file.txt()) }
     }
+}
+
+class NapiProjectOption(providerName: String, source: File, private val response: NapiProjektResponse, lang: String)
+    : Option(providerName, source, response.getId(), lang) {
+    override fun download(): Single<File> {
+        return response.toExtracted(ARCHIVE_PASSWORD)
+                .flatMap { it.save(source.txt()) }
+                .singleOrError()
+    }
+
 }
 
 
@@ -103,7 +115,9 @@ data class NapiProjektResponse(
 
     fun toExtracted(password: String?): Observable<NapiProjektResponse> {
         return subtitles.content.bytes.extract(password)
+                .doOnNext { log.debug("Extracting {} bytes", subtitles.getContentSize()) }
                 .map { this.copy(subtitles = this.subtitles.copy(content = ByteContent(it))) }
+                .doOnNext { log.debug("Extracted {} bytes to {} bytes", subtitles.getContentSize(), it.subtitles.getContentSize()) }
     }
 
     fun save(output: File): Observable<File> {
@@ -127,6 +141,10 @@ data class Subtitles(
         @field:Element(name = "upload_date") var uploadDate: Date,
         @field:Element(name = "content") @field:Convert(Base64Converter::class) var content: ByteContent) {
     constructor() : this("", "", 0L, "", "", Date(), ByteContent(ByteArray(0)))
+
+    fun getContentSize(): Int {
+        return content.bytes.size
+    }
 }
 
 data class ByteContent(val bytes: ByteArray)
